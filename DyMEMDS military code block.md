@@ -501,24 +501,18 @@ FlowRMTULost[Country,RMAll,InfrastOthers]=
 définition des prix des équipements, qui est l'entrée de Dymemds pour l'énergie embarquée. Hypothèses importantes et discutables
 
 ```vensim
-"PriceRef(1998$/TU)"[MilitaryAircrafts,Country]=
-	"PriceRef(1998$/TU)"[Aircarft,Country]*0.201 ~~|
-"PriceRef(1998$/TU)"[MilitaryHelicopters,Country]=
-	"PriceRef(1998$/TU)"[Aircarft,Country]*0.034 ~~|
-"PriceRef(1998$/TU)"[MilitaryArmoured,Country]=
-	"PriceRef(1998$/TU)"["HV-ICV",Country]*11.35 ~~|
-"PriceRef(1998$/TU)"[MilitaryPatrol,Country]=
-	"PriceRef(1998$/TU)"[vessel,Country]*0.091 ~~|
-"PriceRef(1998$/TU)"[MilitaryPrincipalSurface,Country]=
-	"PriceRef(1998$/TU)"[vessel,Country]*1.58 ~~|
-"PriceRef(1998$/TU)"[MilitarySubmarines,Country]=
-	"PriceRef(1998$/TU)"[vessel,Country]*4.95
-	~	$/TU
-	~	Coefficients calibres sur le mix de livraisons 1985-2005 (nettoye du
-		bruit post-pic), prix/tonne par role ancres sur les couts unitaires
-		hors developpement des PLF Senat, convertis en $1998.
-		NB : valables pour ce mix et cette periode. Etape 2 = prix par materiel.
-	|
+"EmbTU(MJ/TU)"[Country,xx]=
+	"PriceRef(1998$/TU)"[xx,Country]*"aFPIndLOCAL(MJ/$)"[Country]
+	~	MJ/TU
+	~		|
+
+"EmbTU(MJ/yr)"[Country, xx]=
+	"EmbTU(MJ/TU)"[Country, xx]*"FlowNewTU(/yr)"[Country, xx]
+	~	MJ/Year
+	~		|
+
+"EmbTU(PJ/yr)"[Country, xx]=
+	"EmbTU(MJ/yr)"[Country, xx]/1e+09 ~~|
 
 EmbEnergyMilitaryTotal[Country]=
 	SUM("EmbTU(PJ/yr)"[Country,MilitaryType!])
@@ -537,16 +531,169 @@ EmbEnergyMilitaryTotal smooth[Country]=
 	~	PJ/Year
 	~	energie embarquee par type, lissee
 	|
+```
 
-FlowNewTU smooth[Country,MilitaryType]=
-	SMOOTH("FlowNewTU(/yr)"[Country,MilitaryType], 3)
-	~	TU/Year
-	~	production neuve lissee
+
+### Masses et prix des proxys civils
+
+```
+"MassRefCivilAircraft(t/TU)"=
+	"weightAircraft(t)"
+	~	t/TU
+	~	Avion civil de reference DyMEMDS, declare a 120 t.
+	|
+
+"MassRefCivilHV(t/TU)"=
+	6
+	~	t/TU
+	~	Poids lourd civil de reference. DyMEMDS pose HV = 4 x LV, et LV
+	|
+
+"MassRefCivilVessel(t/TU)"=
+	10000
+	~	t/TU
+	~	HYPOTHESE A DISCUTER (pas de source dans le modele). PriceRef[vessel] = 2e8 $1998 ; 
+	10 000 t lege + 200 M$1998 => 20 000 $1998/t, ordre de
+		grandeur d'un navire complexe (methanier, paquebot)
 	|
 ```
 
 
-## BRANCHEMENTS SUR LES BOUCLES DYMEMDS
+```
+"PriceRefCivilAircraft(1998$/t)"[Country]=
+	"PriceRef(1998$/TU)"[Aircarft,Country]/"MassRefCivilAircraft(t/TU)"
+	~	$/t
+	~		|
+
+"PriceRefCivilHV(1998$/t)"[Country]=
+	"PriceRef(1998$/TU)"["HV-ICV",Country]/"MassRefCivilHV(t/TU)"
+	~	$/t
+	~		|
+
+"PriceRefCivilVessel(1998$/t)"[Country]=
+	"PriceRef(1998$/TU)"[vessel,Country]/"MassRefCivilVessel(t/TU)"
+	~	$/t
+	~		|
+```
+
+### Masse pondérée annuelle par famille
+ Rend le prix de famille coherent avec le mix annuel. Prix_famille x Livraisons_famille = tonnage livre x prix/tonne, donc la valeur totale est conservee sans passer par un prix par materiel.                                                        
+
+```
+"MassRefMilitaryFam(t/TU)"[Country,MilitaryArmoured]=
+	XIDZ(SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitaryArmouredUnit!]
+	*"MassUnitMilitaryUnit(t/TU)"[MilitaryArmouredUnit!]),
+	SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitaryArmouredUnit!]),
+	"MassMeanMilitaryFam(t/TU)"[MilitaryArmoured]) ~~|
+"MassRefMilitaryFam(t/TU)"[Country,MilitaryAircrafts]=
+	XIDZ(SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitaryAircraftsUnit!]
+	*"MassUnitMilitaryUnit(t/TU)"[MilitaryAircraftsUnit!]),
+	SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitaryAircraftsUnit!]),
+	"MassMeanMilitaryFam(t/TU)"[MilitaryAircrafts]) ~~|
+"MassRefMilitaryFam(t/TU)"[Country,MilitaryHelicopters]=
+	XIDZ(SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitaryHelicoptersUnit!]
+	*"MassUnitMilitaryUnit(t/TU)"[MilitaryHelicoptersUnit!]),
+	SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitaryHelicoptersUnit!]),
+	"MassMeanMilitaryFam(t/TU)"[MilitaryHelicopters]) ~~|
+"MassRefMilitaryFam(t/TU)"[Country,MilitaryPatrol]=
+	XIDZ(SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitaryPatrolUnit!]
+	*"MassUnitMilitaryUnit(t/TU)"[MilitaryPatrolUnit!]),
+	SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitaryPatrolUnit!]),
+	"MassMeanMilitaryFam(t/TU)"[MilitaryPatrol]) ~~|
+"MassRefMilitaryFam(t/TU)"[Country,MilitaryPrincipalSurface]=
+	XIDZ(SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitarySurfaceUnit!]
+	*"MassUnitMilitaryUnit(t/TU)"[MilitarySurfaceUnit!]),
+	SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitarySurfaceUnit!]),
+	"MassMeanMilitaryFam(t/TU)"[MilitaryPrincipalSurface]) ~~|
+"MassRefMilitaryFam(t/TU)"[Country,MilitarySubmarines]=
+	XIDZ(SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitarySubmarinesUnit!]
+	*"MassUnitMilitaryUnit(t/TU)"[MilitarySubmarinesUnit!]),
+	SUM("FlowNewTUMilitaryUnit(/yr)"[Country,MilitarySubmarinesUnit!]),
+	"MassMeanMilitaryFam(t/TU)"[MilitarySubmarines])
+	~	t/TU
+	~	Masse unitaire moyenne des materiels effectivement livres dans l'annee,
+		par famille. Rappel de nommage : element de famille
+		MilitaryPrincipalSurface, sous-plage MilitarySurfaceUnit.
+	|
+```
+
+(Masse moyenne non pondérée, variable secours si pas de livraison)
+
+Moyenne arithmetique des masses unitaires lues dans Military_MassUnit.        
+ Les diviseurs sont les cardinaux des sous-plages : 10 blindes, 44 avions,     
+14 helicos, 13 patrouilleurs, 14 batiments de surface, 7 sous-marins.         
+```
+"MassMeanMilitaryFam(t/TU)"[MilitaryArmoured]=
+	SUM("MassUnitMilitaryUnit(t/TU)"[MilitaryArmouredUnit!])/10 ~~|
+"MassMeanMilitaryFam(t/TU)"[MilitaryAircrafts]=
+	SUM("MassUnitMilitaryUnit(t/TU)"[MilitaryAircraftsUnit!])/44 ~~|
+"MassMeanMilitaryFam(t/TU)"[MilitaryHelicopters]=
+	SUM("MassUnitMilitaryUnit(t/TU)"[MilitaryHelicoptersUnit!])/14 ~~|
+"MassMeanMilitaryFam(t/TU)"[MilitaryPatrol]=
+	SUM("MassUnitMilitaryUnit(t/TU)"[MilitaryPatrolUnit!])/13 ~~|
+"MassMeanMilitaryFam(t/TU)"[MilitaryPrincipalSurface]=
+	SUM("MassUnitMilitaryUnit(t/TU)"[MilitarySurfaceUnit!])/14 ~~|
+"MassMeanMilitaryFam(t/TU)"[MilitarySubmarines]=
+	SUM("MassUnitMilitaryUnit(t/TU)"[MilitarySubmarinesUnit!])/7
+	~	t/TU
+	~			Sert de valeur de repli les annees sans livraison.
+	|
+```
+
+
+###  Coef Civil-> Militaire  
+```
+PremiumMilitary[MilitaryAircrafts]=
+	1.5 ~~|
+PremiumMilitary[MilitaryHelicopters]=
+	1.2 ~~|
+PremiumMilitary[MilitaryArmoured]=
+	3.5 ~~|
+PremiumMilitary[MilitaryPatrol]=
+	1.5 ~~|
+PremiumMilitary[MilitaryPrincipalSurface]=
+	2 ~~|
+PremiumMilitary[MilitarySubmarines]=
+	12
+	~	
+	~	 helicoptere proche du civil, la
+		cellule est souvent la meme, blinde piece massive mais peu de matiere, SNA/SNLE
+		coque epaisse + chaufferie nucleaire.
+	|
+```
+
+### Calcul final prix militaires (regle de trois)
+```
+"PriceRef(1998$/TU)"[MilitaryAircrafts,Country]=
+	"PriceRefCivilAircraft(1998$/t)"[Country]
+	*"MassRefMilitaryFam(t/TU)"[Country,MilitaryAircrafts]
+	*PremiumMilitary[MilitaryAircrafts] ~~|
+"PriceRef(1998$/TU)"[MilitaryHelicopters,Country]=
+	"PriceRefCivilAircraft(1998$/t)"[Country]
+	*"MassRefMilitaryFam(t/TU)"[Country,MilitaryHelicopters]
+	*PremiumMilitary[MilitaryHelicopters] ~~|
+"PriceRef(1998$/TU)"[MilitaryArmoured,Country]=
+	"PriceRefCivilHV(1998$/t)"[Country]
+	*"MassRefMilitaryFam(t/TU)"[Country,MilitaryArmoured]
+	*PremiumMilitary[MilitaryArmoured] ~~|
+"PriceRef(1998$/TU)"[MilitaryPatrol,Country]=
+	"PriceRefCivilVessel(1998$/t)"[Country]
+	*"MassRefMilitaryFam(t/TU)"[Country,MilitaryPatrol]
+	*PremiumMilitary[MilitaryPatrol] ~~|
+"PriceRef(1998$/TU)"[MilitaryPrincipalSurface,Country]=
+	"PriceRefCivilVessel(1998$/t)"[Country]
+	*"MassRefMilitaryFam(t/TU)"[Country,MilitaryPrincipalSurface]
+	*PremiumMilitary[MilitaryPrincipalSurface] ~~|
+"PriceRef(1998$/TU)"[MilitarySubmarines,Country]=
+	"PriceRefCivilVessel(1998$/t)"[Country]
+	*"MassRefMilitaryFam(t/TU)"[Country,MilitarySubmarines]
+	*PremiumMilitary[MilitarySubmarines] ~~|
+```
+
+
+
+
+## Branchements sur les boucles dymemds
 
 ```vensim
 StockTU[MilitaryArmoured,Country]=
